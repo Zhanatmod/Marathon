@@ -17,7 +17,7 @@ jobs:
     name: SecScanner Security Scan
     runs-on: ubuntu-latest
     env:
-      SECSCANNER_SERVER: "https://locking-information-dental-blake.trycloudflare.com"
+      SECSCANNER_SERVER: "https://ss.zhanat.pro"
       SECSCANNER_SCANNER: "comprehensive"
       SECSCANNER_SEVERITY_THRESHOLD: "medium"
       SECSCANNER_FAIL_ON_FINDINGS: "true"
