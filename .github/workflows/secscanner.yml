@@ -1,0 +1,106 @@
+# SecScanner GitHub Actions Integration
+# Copy this file to .github/workflows/secscanner.yml
+
+name: SecScanner SAST Scan
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  secscanner-scan:
+    name: SecScanner Security Scan
+    runs-on: ubuntu-latest
+    env:
+      SECSCANNER_SERVER: "https://locking-information-dental-blake.trycloudflare.com"
+      SECSCANNER_SCANNER: "comprehensive"
+      SECSCANNER_SEVERITY_THRESHOLD: "medium"
+      SECSCANNER_FAIL_ON_FINDINGS: "true"
+      SECSCANNER_TIMEOUT: "900"
+    steps:
+      - name: Run SecScanner
+        run: |
+          # Create CI scan
+          RESPONSE=$(curl -sf -X POST "$SECSCANNER_SERVER/api/v1/ci/scans" \
+            -H "Authorization: Bearer ${{ secrets.SECSCANNER_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n \
+              --arg project_id "${{ secrets.SECSCANNER_PROJECT }}" \
+              --arg repo_url "${{ github.server_url }}/${{ github.repository }}.git" \
+              --arg branch "${{ github.head_ref || github.ref_name }}" \
+              --arg commit_sha "${{ github.event.pull_request.head.sha || github.sha }}" \
+              --arg gh_repo "${{ github.repository }}" \
+              --arg pr_number "${{ github.event.pull_request.number }}" \
+              --arg scanner "$SECSCANNER_SCANNER" \
+              --arg threshold "$SECSCANNER_SEVERITY_THRESHOLD" \
+              '{
+                project_id: $project_id,
+                repo_url: $repo_url,
+                branch: $branch,
+                commit_sha: $commit_sha,
+                gh_repo_full_name: $gh_repo,
+                scanner_name: $scanner,
+                severity_threshold: $threshold
+              } + (if $pr_number != "" then {pr_number: ($pr_number | tonumber)} else {} end)'
+            )")
+
+          SCAN_ID=$(echo "$RESPONSE" | jq -r '.scan_id')
+          echo "Scan created: $SCAN_ID"
+
+          # Poll for completion
+          ELAPSED=0
+          while [ "$ELAPSED" -lt "$SECSCANNER_TIMEOUT" ]; do
+            STATUS_RESPONSE=$(curl -sf "$SECSCANNER_SERVER/api/v1/ci/scans/$SCAN_ID/status" \
+              -H "Authorization: Bearer ${{ secrets.SECSCANNER_TOKEN }}")
+            SCAN_STATUS=$(echo "$STATUS_RESPONSE" | jq -r '.status')
+            PROGRESS=$(echo "$STATUS_RESPONSE" | jq -r '.progress')
+            echo "Status: $SCAN_STATUS ($PROGRESS%)"
+
+            if [ "$SCAN_STATUS" = "completed" ] || [ "$SCAN_STATUS" = "failed" ]; then
+              break
+            fi
+            sleep 10
+            ELAPSED=$((ELAPSED + 10))
+          done
+
+          if [ "$SCAN_STATUS" = "failed" ]; then
+            echo "Scan failed"
+            exit 1
+          fi
+
+          if [ "$SCAN_STATUS" != "completed" ]; then
+            echo "Scan timed out"
+            exit 1
+          fi
+
+          # Download SARIF report
+          curl -sf "$SECSCANNER_SERVER/api/v1/ci/scans/$SCAN_ID/report?format=sarif" \
+            -H "Authorization: Bearer ${{ secrets.SECSCANNER_TOKEN }}" \
+            -o secscanner.sarif
+
+          echo "SARIF report downloaded"
+
+          ABOVE=$(echo "$STATUS_RESPONSE" | jq -r '.findings_above_threshold')
+          TOTAL=$(echo "$STATUS_RESPONSE" | jq -r '.findings_total')
+          echo "Findings: $TOTAL total, $ABOVE above threshold"
+
+          if [ "$SECSCANNER_FAIL_ON_FINDINGS" = "true" ] && [ "$ABOVE" -gt 0 ]; then
+            echo "SCAN_FAILED=true" >> $GITHUB_ENV
+          fi
+
+      - name: Upload SARIF report
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: secscanner.sarif
+
+      - name: Check threshold
+        if: env.SCAN_FAILED == 'true'
+        run: |
+          echo "Failing: findings above severity threshold"
+          exit 1
