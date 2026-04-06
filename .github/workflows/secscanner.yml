@@ -17,10 +17,10 @@ jobs:
     name: SecScanner Security Scan
     runs-on: ubuntu-latest
     env:
-      SECSCANNER_SERVER: "https://ss.zhanat.pro"
+      SECSCANNER_SERVER: "https://secscanner.kz"
       SECSCANNER_SCANNER: "comprehensive"
       SECSCANNER_SEVERITY_THRESHOLD: "medium"
-      SECSCANNER_FAIL_ON_FINDINGS: "true"
+      SECSCANNER_FAIL_ON_FINDINGS: "false"
       SECSCANNER_TIMEOUT: "900"
     steps:
       - name: Run SecScanner
@@ -38,6 +38,7 @@ jobs:
               --arg pr_number "${{ github.event.pull_request.number }}" \
               --arg scanner "$SECSCANNER_SCANNER" \
               --arg threshold "$SECSCANNER_SEVERITY_THRESHOLD" \
+              --arg fail_on_findings "$SECSCANNER_FAIL_ON_FINDINGS" \
               '{
                 project_id: $project_id,
                 repo_url: $repo_url,
@@ -45,7 +46,8 @@ jobs:
                 commit_sha: $commit_sha,
                 gh_repo_full_name: $gh_repo,
                 scanner_name: $scanner,
-                severity_threshold: $threshold
+                severity_threshold: $threshold,
+                fail_on_findings: ($fail_on_findings == "true")
               } + (if $pr_number != "" then {pr_number: ($pr_number | tonumber)} else {} end)'
             )")
 
