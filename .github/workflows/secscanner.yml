@@ -20,7 +20,7 @@ jobs:
       SECSCANNER_SERVER: "https://secscanner.kz"
       SECSCANNER_SCANNER: "comprehensive"
       SECSCANNER_SEVERITY_THRESHOLD: "medium"
-      SECSCANNER_FAIL_ON_FINDINGS: "false"
+      SECSCANNER_FAIL_ON_FINDINGS: "true"
       SECSCANNER_TIMEOUT: "900"
     steps:
       - name: Run SecScanner
@@ -128,7 +128,7 @@ jobs:
       # Add this step after "Run SecScanner" in your workflow
       # Variables are available via $GITHUB_ENV from the scan step
       - name: Notify Telegram
-        if: always()
+        if: always() && env.SECSCANNER_TOTAL != ''
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -136,9 +136,9 @@ jobs:
           GH_ACTOR: ${{ github.actor }}
           GH_SHA: ${{ github.sha }}
         run: |
-          if [ "$SECSCANNER_ABOVE" -gt 0 ]; then ICON="❌"; ST="FAILED"; else ICON="✅"; ST="PASSED"; fi
+          if [ "$SECSCANNER_ABOVE" -gt 0 ]; then ICON="⚠️"; ST="$SECSCANNER_ABOVE finding(s) above threshold"; else ICON="✅"; ST="PASSED"; fi
 
-          MSG="$ICON *SecScanner $ST* for *$GH_REPO*
+          MSG="$ICON *SecScanner — $ST* for *$GH_REPO*
           Triggered by: *$GH_ACTOR*
           Commit: $GH_SHA
           Findings: $SECSCANNER_TOTAL total (critical: $SECSCANNER_CRITICAL, high: $SECSCANNER_HIGH, medium: $SECSCANNER_MEDIUM, low: $SECSCANNER_LOW)
