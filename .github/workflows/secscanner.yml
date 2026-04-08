@@ -24,18 +24,26 @@ jobs:
       SECSCANNER_TIMEOUT: "900"
     steps:
       - name: Run SecScanner
+        env:
+          SECSCANNER_TOKEN: ${{ secrets.SECSCANNER_TOKEN }}
+          SECSCANNER_PROJECT: ${{ secrets.SECSCANNER_PROJECT }}
+          GH_REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
+          GH_BRANCH: ${{ github.head_ref || github.ref_name }}
+          GH_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          GH_REPO: ${{ github.repository }}
+          GH_PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           # Create CI scan
           RESPONSE=$(curl -sf -X POST "$SECSCANNER_SERVER/api/v1/ci/scans" \
-            -H "Authorization: Bearer ${{ secrets.SECSCANNER_TOKEN }}" \
+            -H "Authorization: Bearer $SECSCANNER_TOKEN" \
             -H "Content-Type: application/json" \
             -d "$(jq -n \
-              --arg project_id "${{ secrets.SECSCANNER_PROJECT }}" \
-              --arg repo_url "${{ github.server_url }}/${{ github.repository }}.git" \
-              --arg branch "${{ github.head_ref || github.ref_name }}" \
-              --arg commit_sha "${{ github.event.pull_request.head.sha || github.sha }}" \
-              --arg gh_repo "${{ github.repository }}" \
-              --arg pr_number "${{ github.event.pull_request.number }}" \
+              --arg project_id "$SECSCANNER_PROJECT" \
+              --arg repo_url "$GH_REPO_URL" \
+              --arg branch "$GH_BRANCH" \
+              --arg commit_sha "$GH_COMMIT_SHA" \
+              --arg gh_repo "$GH_REPO" \
+              --arg pr_number "$GH_PR_NUMBER" \
               --arg scanner "$SECSCANNER_SCANNER" \
               --arg threshold "$SECSCANNER_SEVERITY_THRESHOLD" \
               --arg fail_on_findings "$SECSCANNER_FAIL_ON_FINDINGS" \
@@ -58,7 +66,7 @@ jobs:
           ELAPSED=0
           while [ "$ELAPSED" -lt "$SECSCANNER_TIMEOUT" ]; do
             STATUS_RESPONSE=$(curl -sf "$SECSCANNER_SERVER/api/v1/ci/scans/$SCAN_ID/status" \
-              -H "Authorization: Bearer ${{ secrets.SECSCANNER_TOKEN }}")
+              -H "Authorization: Bearer $SECSCANNER_TOKEN")
             SCAN_STATUS=$(echo "$STATUS_RESPONSE" | jq -r '.status')
             PROGRESS=$(echo "$STATUS_RESPONSE" | jq -r '.progress')
             echo "Status: $SCAN_STATUS ($PROGRESS%)"
@@ -82,7 +90,7 @@ jobs:
 
           # Download SARIF report
           curl -sf "$SECSCANNER_SERVER/api/v1/ci/scans/$SCAN_ID/report?format=sarif" \
-            -H "Authorization: Bearer ${{ secrets.SECSCANNER_TOKEN }}" \
+            -H "Authorization: Bearer $SECSCANNER_TOKEN" \
             -o secscanner.sarif
 
           echo "SARIF report downloaded"
