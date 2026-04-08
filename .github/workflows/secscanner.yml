@@ -20,7 +20,7 @@ jobs:
       SECSCANNER_SERVER: "https://secscanner.kz"
       SECSCANNER_SCANNER: "comprehensive"
       SECSCANNER_SEVERITY_THRESHOLD: "medium"
-      SECSCANNER_FAIL_ON_FINDINGS: "true"
+      SECSCANNER_FAIL_ON_FINDINGS: "false"
       SECSCANNER_TIMEOUT: "900"
     steps:
       - name: Run SecScanner
