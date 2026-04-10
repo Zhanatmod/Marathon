@@ -17,10 +17,10 @@ jobs:
     name: SecScanner Security Scan
     runs-on: ubuntu-latest
     env:
-      SECSCANNER_SERVER: "https://secscanner.kz"
+      SECSCANNER_SERVER: "https://secscanner.dev"
       SECSCANNER_SCANNER: "comprehensive"
       SECSCANNER_SEVERITY_THRESHOLD: "medium"
-      SECSCANNER_FAIL_ON_FINDINGS: "false"
+      SECSCANNER_FAIL_ON_FINDINGS: "true"
       SECSCANNER_TIMEOUT: "900"
     steps:
       - name: Run SecScanner
@@ -136,12 +136,13 @@ jobs:
           GH_ACTOR: ${{ github.actor }}
           GH_SHA: ${{ github.sha }}
         run: |
-          if [ "$SECSCANNER_ABOVE" -gt 0 ]; then ICON="⚠️"; ST="$SECSCANNER_ABOVE finding(s) above threshold"; else ICON="✅"; ST="PASSED"; fi
+          if [ "$SECSCANNER_ABOVE" -gt 0 ]; then ICON="⚠️"; ST="$SECSCANNER_ABOVE of $SECSCANNER_TOTAL finding(s) above threshold"; else ICON="✅"; ST="No findings above threshold"; fi
+          SHORT_SHA=$(echo "$GH_SHA" | cut -c1-8)
 
           MSG="$ICON *SecScanner — $ST* for *$GH_REPO*
           Triggered by: *$GH_ACTOR*
-          Commit: $GH_SHA
-          Findings: $SECSCANNER_TOTAL total (critical: $SECSCANNER_CRITICAL, high: $SECSCANNER_HIGH, medium: $SECSCANNER_MEDIUM, low: $SECSCANNER_LOW)
+          Commit: $SHORT_SHA
+          Findings: critical: $SECSCANNER_CRITICAL, high: $SECSCANNER_HIGH, medium: $SECSCANNER_MEDIUM, low: $SECSCANNER_LOW
           [Full report]($SECSCANNER_URL)"
 
           curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
